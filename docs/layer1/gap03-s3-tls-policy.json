@@ -1,0 +1,1 @@
+{"Statement":[{"Action":"s3:*","Condition":{"Bool":{"aws:SecureTransport":"false"}},"Effect":"Deny","Principal":"*","Resource":["arn:aws:s3:::acme-health-intake-uploads-ceb4afaf","arn:aws:s3:::acme-health-intake-uploads-ceb4afaf/*"],"Sid":"DenyInsecureTransport"}],"Version":"2012-10-17"}
