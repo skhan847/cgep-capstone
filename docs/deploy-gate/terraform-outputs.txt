@@ -1,0 +1,9 @@
+api_url = "https://tqtotopc.execute-api.us-east-1.amazonaws.com/intake"
+intake_table = "acme-health-intake-submissions-ceb4afaf"
+lambda_function_name = "acme-health-intake-handler-ceb4afaf"
+private_subnet_ids = [
+  "subnet-34877df510fc5addd",
+  "subnet-1e63bc302006b7cc7",
+]
+uploads_bucket = "acme-health-intake-uploads-ceb4afaf"
+vpc_id = "vpc-7e20447bac1ba8b37"

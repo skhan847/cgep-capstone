@@ -1,0 +1,43 @@
+{
+    "Items": [
+        {
+            "submission_id": {
+                "S": "d07939f4-b32b-4c94-af9f-68c210a5dc9b"
+            },
+            "patient_id": {
+                "S": "P-0001"
+            },
+            "submitted_at": {
+                "S": "1794416294"
+            },
+            "fields": {
+                "M": {
+                    "reason": {
+                        "S": "smoke-test"
+                    }
+                }
+            }
+        },
+        {
+            "submission_id": {
+                "S": "e79600b9-78fe-40c7-8cc4-fcee8818dc4d"
+            },
+            "patient_id": {
+                "S": "P-0001"
+            },
+            "submitted_at": {
+                "S": "1794416189"
+            },
+            "fields": {
+                "M": {
+                    "reason": {
+                        "S": "smoke-test"
+                    }
+                }
+            }
+        }
+    ],
+    "Count": 2,
+    "ScannedCount": 2,
+    "ConsumedCapacity": null
+}

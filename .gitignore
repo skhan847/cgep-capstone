@@ -15,3 +15,10 @@ terraform/lambda/handler.zip
 # Local
 evidence/
 .DS_Store
+
+# Moto local override
+terraform/moto_override.tf
+
+# Moto local override
+terraform/moto_override.tf
+__pycache__/
