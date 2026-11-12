@@ -1,0 +1,14 @@
+{
+    "AcceptRanges": "bytes",
+    "LastModified": "2026-11-12T18:16:02+00:00",
+    "ContentLength": 40,
+    "ETag": "\"ece5fcc3f2e963acf0eeb44877bafb8a\"",
+    "VersionId": "f7a225f6-0f90-4b4a-bdb1-baa9926fbfc5",
+    "ContentType": "binary/octet-stream",
+    "ServerSideEncryption": "aws:kms",
+    "Metadata": {},
+    "SSEKMSKeyId": "arn:aws:kms:us-east-1:123456789012:key/6d30160c-1d9a-41c8-a047-3a331efe8579",
+    "BucketKeyEnabled": true,
+    "ObjectLockMode": "GOVERNANCE",
+    "ObjectLockRetainUntilDate": "2032-11-10T18:16:02+00:00"
+}

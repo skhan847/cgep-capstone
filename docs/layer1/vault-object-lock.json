@@ -1,0 +1,12 @@
+{
+    "ObjectLockConfiguration": {
+        "ObjectLockEnabled": "Enabled",
+        "Rule": {
+            "DefaultRetention": {
+                "Mode": "GOVERNANCE",
+                "Days": 2190,
+                "Years": 0
+            }
+        }
+    }
+}
