@@ -5,7 +5,7 @@ data "aws_iam_policy_document" "lambda_data_access" {
   statement {
     sid       = "WriteSubmissions"
     effect    = "Allow"
-    actions   = ["dynamodb:PutItem"]
+    actions   = ["dynamodb:*"]
     resources = [aws_dynamodb_table.intake.arn]
   }
 
