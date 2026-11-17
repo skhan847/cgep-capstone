@@ -158,7 +158,7 @@ jobs:
           aws s3api head-object --bucket "$VAULT" --key "runs/${{ github.run_id }}/$BUNDLE" \
             --query "{lock:ObjectLockMode,until:ObjectLockRetainUntilDate,sse:ServerSideEncryption,version:VersionId}" > lock.json
           aws s3api put-bucket-policy --bucket "$VAULT" --policy file://vault-policy.json
-          aws s3api get-bucket-policy --bucket "$VAULT" --query Policy --output text | diff - vault-policy.json
+          diff <(aws s3api get-bucket-policy --bucket "$VAULT" --query Policy --output text | jq -S .) <(jq -S . vault-policy.json)
           echo "TLS-only bucket policy restored"
           printf '{"run_id":"%s","commit":"%s","bundle":"%s","sha256":"%s","vault":"%s","object":%s}\n' \
             "${{ github.run_id }}" "${{ github.sha }}" "$BUNDLE" "$(cat $BUNDLE.sha256)" "$VAULT" "$(cat lock.json)" | tee receipt.json
