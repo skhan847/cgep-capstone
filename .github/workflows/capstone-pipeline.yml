@@ -1,0 +1,173 @@
+name: capstone-pipeline
+
+# Layer 3: plan -> conftest gate -> apply (main only) -> cosign sign -> vault upload
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # lets cosign sign keyless with GitHub OIDC
+
+env:
+  AWS_REGION: us-east-1
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  AWS_ENDPOINT_URL: http://127.0.0.1:4566
+  EVIDENCE: evidence/run
+  ON_MAIN: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
+jobs:
+  security-scans:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks (secrets in code and git history)
+        run: |
+          mkdir -p "$EVIDENCE"
+          curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks detect --source . --redact --report-format json --report-path "$EVIDENCE/gitleaks.json"
+
+      - name: Semgrep (code patterns in handler.py)
+        run: |
+          pip install -q semgrep
+          semgrep scan --config p/python --config p/secrets --severity ERROR --error --json --output "$EVIDENCE/semgrep.json" terraform/lambda
+
+      - name: Trivy config scan (Terraform misconfigurations, report only)
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          trivy config --severity HIGH,CRITICAL --format json --output "$EVIDENCE/trivy-config.json" terraform
+          trivy config --severity HIGH,CRITICAL --exit-code 0 terraform
+
+      - name: Save scan results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-scans-${{ github.run_id }}
+          path: evidence/
+          retention-days: 90
+
+  grc-pipeline:
+    runs-on: ubuntu-latest
+    services:
+      moto:
+        image: motoserver/moto:latest
+        ports:
+          - 4566:5000
+        env:
+          MOTO_IAM_LOAD_MANAGED_POLICIES: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up tools (Terraform, Conftest, Moto override)
+        run: |
+          mkdir -p "$EVIDENCE"
+          curl -fsSL https://github.com/open-policy-agent/conftest/releases/download/v0.62.0/conftest_0.62.0_Linux_x86_64.tar.gz \
+            | tar -xz -C /usr/local/bin conftest
+          for i in $(seq 60); do curl -s http://127.0.0.1:4566/ >/dev/null && break; sleep 1; done
+          cat > terraform/moto_override.tf <<'TF'
+          provider "aws" {
+            access_key                  = "test"
+            secret_key                  = "test"
+            skip_credentials_validation = true
+            skip_metadata_api_check     = true
+            skip_requesting_account_id  = true
+            s3_use_path_style           = true
+            endpoints {
+              apigatewayv2 = "http://127.0.0.1:4566"
+              cloudtrail   = "http://127.0.0.1:4566"
+              dynamodb     = "http://127.0.0.1:4566"
+              ec2          = "http://127.0.0.1:4566"
+              iam          = "http://127.0.0.1:4566"
+              kms          = "http://127.0.0.1:4566"
+              lambda       = "http://127.0.0.1:4566"
+              s3           = "http://127.0.0.1:4566"
+              sts          = "http://127.0.0.1:4566"
+            }
+          }
+          TF
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+
+      - name: "1. Plan the Terraform"
+        working-directory: terraform
+        run: |
+          terraform init -input=false
+          terraform validate
+          terraform plan -out=tfplan -input=false -no-color | tee plan.txt
+          terraform show -json tfplan > plan.json
+          cp plan.json plan.txt "$GITHUB_WORKSPACE/$EVIDENCE/"
+
+      - name: "2. Policy check with Conftest"
+        run: |
+          conftest test --all-namespaces -p policies --output json terraform/plan.json > "$EVIDENCE/conftest.json" || true
+          conftest test --all-namespaces -p policies terraform/plan.json
+
+      - name: "3. Apply on merge to main"
+        if: env.ON_MAIN == 'true'
+        working-directory: terraform
+        run: |
+          terraform apply -input=false tfplan
+          pip install -q boto3
+          cd lambda
+          export INTAKE_TABLE=$(terraform -chdir=.. output -raw intake_table)
+          export UPLOAD_BUCKET=$(terraform -chdir=.. output -raw uploads_bucket)
+          python -c "import json, handler; print(handler.handler({'body': json.dumps({'patient_id': 'P-CI', 'fields': {'reason': 'pipeline'}})}, None)['body'])" \
+            | tee "$GITHUB_WORKSPACE/$EVIDENCE/smoke-test.json"
+          grep -q '"status": "received"' "$GITHUB_WORKSPACE/$EVIDENCE/smoke-test.json"
+
+      - uses: sigstore/cosign-installer@v3
+        if: env.ON_MAIN == 'true'
+        with:
+          cosign-release: 'v2.2.4'
+
+      - name: "4. Sign the evidence bundle with Cosign (keyless, GitHub OIDC)"
+        if: env.ON_MAIN == 'true'
+        run: |
+          BUNDLE="evidence-${{ github.run_id }}-${{ github.sha }}.tar.gz"
+          tar -czf "$BUNDLE" "$EVIDENCE"
+          sha256sum "$BUNDLE" | awk '{print $1}' > "$BUNDLE.sha256"
+          cosign sign-blob --yes --bundle "$BUNDLE.sig.bundle" "$BUNDLE"
+          echo "BUNDLE=$BUNDLE" >> "$GITHUB_ENV"
+
+      - name: "5. Upload the signed bundle to the evidence vault"
+        if: env.ON_MAIN == 'true'
+        run: |
+          VAULT=$(aws s3api list-buckets --query "Buckets[?contains(Name,'-evidence-')].Name | [0]" --output text)
+          echo "Vault bucket: $VAULT"
+          # MOTO ONLY: Moto can't read the aws:SecureTransport condition, so it treats
+          # our TLS-only Deny as "deny everything". Real AWS allows this HTTPS upload.
+          # Lift the policy, upload, then put the exact same policy back (checked below).
+          aws s3api get-bucket-policy --bucket "$VAULT" --query Policy --output text > vault-policy.json
+          aws s3api delete-bucket-policy --bucket "$VAULT"
+          for f in "$BUNDLE" "$BUNDLE.sha256" "$BUNDLE.sig.bundle"; do
+            aws s3api put-object --bucket "$VAULT" --key "runs/${{ github.run_id }}/$f" --body "$f" --checksum-algorithm SHA256
+          done
+          aws s3api head-object --bucket "$VAULT" --key "runs/${{ github.run_id }}/$BUNDLE" \
+            --query "{lock:ObjectLockMode,until:ObjectLockRetainUntilDate,sse:ServerSideEncryption,version:VersionId}" > lock.json
+          aws s3api put-bucket-policy --bucket "$VAULT" --policy file://vault-policy.json
+          aws s3api get-bucket-policy --bucket "$VAULT" --query Policy --output text | diff - vault-policy.json
+          echo "TLS-only bucket policy restored"
+          printf '{"run_id":"%s","commit":"%s","bundle":"%s","sha256":"%s","vault":"%s","object":%s}\n' \
+            "${{ github.run_id }}" "${{ github.sha }}" "$BUNDLE" "$(cat $BUNDLE.sha256)" "$VAULT" "$(cat lock.json)" | tee receipt.json
+          mkdir -p evidence/receipt && cp receipt.json "$BUNDLE.sig.bundle" "$BUNDLE.sha256" evidence/receipt/
+
+      - name: Save evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grc-evidence-${{ github.run_id }}
+          path: evidence/
+          retention-days: 90
