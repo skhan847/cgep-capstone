@@ -1,0 +1,417 @@
+{
+  "component-definition": {
+    "uuid": "c98a9ef5-b957-5ef1-a7c6-91087ee07098",
+    "metadata": {
+      "title": "Acme Health Patient Intake API - HIPAA Component Definition",
+      "last-modified": "2026-11-17T00:00:00Z",
+      "version": "1.0.0",
+      "oscal-version": "1.1.2",
+      "parties": [
+        {
+          "uuid": "38ad757c-5740-5b31-9276-d16574be5de3",
+          "type": "organization",
+          "name": "Acme Health GRC Engineering"
+        }
+      ]
+    },
+    "components": [
+      {
+        "uuid": "895b8dec-42ea-59fa-afca-d4e31e097108",
+        "type": "service",
+        "title": "Acme Health Patient Intake API",
+        "description": "POST /intake API (API Gateway v2 -> Lambda python3.12 -> DynamoDB + S3) that accepts patient intake forms containing PHI, governed by a Terraform GRC baseline, a HIPAA Rego policy suite, and a signed-evidence GitHub Actions pipeline.",
+        "purpose": "Collect patient intake submissions for a 50-person telehealth provider.",
+        "props": [
+          {
+            "name": "primary-framework",
+            "value": "HIPAA Security Rule (45 CFR 164 Subpart C)",
+            "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+          }
+        ],
+        "responsible-roles": [
+          {
+            "role-id": "provider",
+            "party-uuids": [
+              "38ad757c-5740-5b31-9276-d16574be5de3"
+            ]
+          }
+        ],
+        "control-implementations": [
+          {
+            "uuid": "6abf86c7-d269-52c6-be54-fed3b97c1d58",
+            "source": "https://csrc.nist.gov/pubs/sp/800/66/r2/final",
+            "description": "HIPAA Security Rule safeguards implemented by the governed intake API. NIST SP 800-66 Rev. 2 is cited as the catalog because no official HIPAA OSCAL catalog exists; each control-id is a token for a 164.x section, and the exact section is in the hipaa-section prop.",
+            "implemented-requirements": [
+              {
+                "uuid": "e1431420-d8b9-5bf3-86fe-027bb57cc860",
+                "control-id": "hipaa-164.312.a.2.iv",
+                "description": "PHI at rest is encrypted with a customer-managed KMS key (alias/acme-health-phi, yearly rotation on). The uploads bucket uses SSE-KMS with that key (GAP-01) and the DynamoDB submissions table uses the same CMK (GAP-02). Policies hipaa_s3_cmk and hipaa_dynamodb_cmk fail the plan if either store falls back to an AWS-owned or AWS-managed key.",
+                "props": [
+                  {
+                    "name": "hipaa-section",
+                    "value": "164.312(a)(2)(iv)",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "hipaa-title",
+                    "value": "Encryption and decryption (addressable)",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "implementation-status",
+                    "value": "implemented",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "closes-gap",
+                    "value": "GAP-01",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "closes-gap",
+                    "value": "GAP-02",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "secondary-framework",
+                    "value": "SOC2 CC6.1",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "secondary-framework",
+                    "value": "CMMC SC.L2-3.13.11",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  }
+                ],
+                "links": [
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/terraform/grc_kms.tf",
+                    "rel": "implementation"
+                  },
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/terraform/main.tf",
+                    "rel": "implementation"
+                  },
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/policies/hipaa_s3_cmk.rego",
+                    "rel": "policy"
+                  },
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/policies/hipaa_dynamodb_cmk.rego",
+                    "rel": "policy"
+                  },
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/docs/layer1/gap01-s3-kms.json",
+                    "rel": "evidence"
+                  },
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/docs/layer1/gap02-dynamodb-kms.json",
+                    "rel": "evidence"
+                  }
+                ]
+              },
+              {
+                "uuid": "1d44771f-aa19-5a60-8756-aa7897adebf7",
+                "control-id": "hipaa-164.312.e.1",
+                "description": "The uploads bucket and the evidence vault both carry a bucket policy that denies every s3 action when aws:SecureTransport is false, so PHI can only move over TLS (GAP-03). Policy hipaa_s3_tls fails the plan if a bucket has no such Deny. Open item: the Lambda still runs outside the VPC (GAP-05), tracked as a planned remediation.",
+                "props": [
+                  {
+                    "name": "hipaa-section",
+                    "value": "164.312(e)(1)",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "hipaa-title",
+                    "value": "Transmission security",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "implementation-status",
+                    "value": "partial",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "closes-gap",
+                    "value": "GAP-03",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "closes-gap",
+                    "value": "GAP-05",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "secondary-framework",
+                    "value": "SOC2 CC6.7",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "secondary-framework",
+                    "value": "CMMC SC.L2-3.13.8",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  }
+                ],
+                "links": [
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/terraform/grc_s3_hardening.tf",
+                    "rel": "implementation"
+                  },
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/terraform/grc_cloudtrail.tf",
+                    "rel": "implementation"
+                  },
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/policies/hipaa_s3_tls.rego",
+                    "rel": "policy"
+                  },
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/docs/layer1/gap03-s3-tls-policy.json",
+                    "rel": "evidence"
+                  }
+                ]
+              },
+              {
+                "uuid": "62214c08-d5ac-5ba4-95c3-88a2faa2cb3f",
+                "control-id": "hipaa-164.308.a.7.ii.a",
+                "description": "Versioning is enabled on the uploads bucket, so an overwritten or deleted PHI attachment can be recovered from a previous version (GAP-04). Policy hipaa_s3_versioning fails the plan if versioning is missing or suspended.",
+                "props": [
+                  {
+                    "name": "hipaa-section",
+                    "value": "164.308(a)(7)(ii)(A)",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "hipaa-title",
+                    "value": "Data backup plan",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "implementation-status",
+                    "value": "implemented",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "closes-gap",
+                    "value": "GAP-04",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "secondary-framework",
+                    "value": "SOC2 A1.2",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "secondary-framework",
+                    "value": "CMMC MP.L2-3.8.9",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  }
+                ],
+                "links": [
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/terraform/grc_s3_hardening.tf",
+                    "rel": "implementation"
+                  },
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/policies/hipaa_s3_versioning.rego",
+                    "rel": "policy"
+                  },
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/docs/layer1/gap04-s3-versioning.json",
+                    "rel": "evidence"
+                  }
+                ]
+              },
+              {
+                "uuid": "3fcbce9c-42b2-5168-bbdb-ec8457f0ea22",
+                "control-id": "hipaa-164.312.a.1",
+                "description": "The Lambda role is least-privilege: dynamodb:PutItem on the submissions table, s3:PutObject on uploads/* only, and kms:GenerateDataKey/Decrypt on the PHI key (GAP-07). Policy hipaa_iam_least_privilege fails the plan on any wildcard action; PR #3 proved it by blocking a re-introduced dynamodb:* wildcard.",
+                "props": [
+                  {
+                    "name": "hipaa-section",
+                    "value": "164.312(a)(1)",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "hipaa-title",
+                    "value": "Access control",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "implementation-status",
+                    "value": "implemented",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "closes-gap",
+                    "value": "GAP-07",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "secondary-framework",
+                    "value": "SOC2 CC6.3",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "secondary-framework",
+                    "value": "CMMC AC.L2-3.1.5",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "secondary-framework",
+                    "value": "HIPAA 164.308(a)(4)",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  }
+                ],
+                "links": [
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/terraform/grc_iam_least_privilege.tf",
+                    "rel": "implementation"
+                  },
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/policies/hipaa_iam_least_privilege.rego",
+                    "rel": "policy"
+                  },
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/pull/3",
+                    "rel": "evidence",
+                    "text": "PR #3 blocked by the policy gate"
+                  }
+                ]
+              },
+              {
+                "uuid": "6dcaa31e-9637-57bc-9a4c-21a50d5111f5",
+                "control-id": "hipaa-164.312.b",
+                "description": "A multi-region CloudTrail trail with log file validation records management events and S3 data events on the uploads bucket, encrypted with the evidence KMS key and delivered into the Object Lock vault. Open item: API Gateway access logging, throttling and WAF (GAP-08) are planned remediations.",
+                "props": [
+                  {
+                    "name": "hipaa-section",
+                    "value": "164.312(b)",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "hipaa-title",
+                    "value": "Audit controls",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "implementation-status",
+                    "value": "partial",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "closes-gap",
+                    "value": "GAP-08",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "secondary-framework",
+                    "value": "SOC2 CC7.2",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "secondary-framework",
+                    "value": "CMMC AU.L2-3.3.1",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  }
+                ],
+                "links": [
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/terraform/grc_cloudtrail.tf",
+                    "rel": "implementation"
+                  },
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/docs/layer1/cloudtrail-status.json",
+                    "rel": "evidence"
+                  },
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/docs/layer1/cloudtrail-event-selectors.json",
+                    "rel": "evidence"
+                  }
+                ]
+              },
+              {
+                "uuid": "bc3e0785-76b9-5068-9126-9dc797db20a5",
+                "control-id": "hipaa-164.312.c.1",
+                "description": "Every merge to main runs the pipeline: Terraform plan, Conftest policy gate, apply, then the evidence bundle is signed keyless with Cosign (GitHub OIDC) and its SHA-256 is recorded, so any change to the evidence is detectable. CloudTrail log file validation adds digest files for audit logs.",
+                "props": [
+                  {
+                    "name": "hipaa-section",
+                    "value": "164.312(c)(1)",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "hipaa-title",
+                    "value": "Integrity",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "implementation-status",
+                    "value": "implemented",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "secondary-framework",
+                    "value": "SOC2 CC8.1",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "secondary-framework",
+                    "value": "CMMC SI.L2-3.14.1",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  }
+                ],
+                "links": [
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/.github/workflows/capstone-pipeline.yml",
+                    "rel": "implementation"
+                  }
+                ]
+              },
+              {
+                "uuid": "ac3fa5bb-262b-5000-a9d7-f7903a978c28",
+                "control-id": "hipaa-164.316.b.2.i",
+                "description": "Evidence bundles and CloudTrail logs land in an S3 bucket with Object Lock (GOVERNANCE mode, default retention 2190 days = 6 years), versioning, SSE-KMS and a full public access block. Pipeline step 5 records the retain-until date in a receipt for each run.",
+                "props": [
+                  {
+                    "name": "hipaa-section",
+                    "value": "164.316(b)(2)(i)",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "hipaa-title",
+                    "value": "Documentation retention (6 years)",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "implementation-status",
+                    "value": "implemented",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  },
+                  {
+                    "name": "secondary-framework",
+                    "value": "SOC2 CC7.2",
+                    "ns": "https://github.com/skhan847/cgep-capstone/ns/grc"
+                  }
+                ],
+                "links": [
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/terraform/grc_evidence_vault.tf",
+                    "rel": "implementation"
+                  },
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/docs/layer1/vault-object-lock.json",
+                    "rel": "evidence"
+                  },
+                  {
+                    "href": "https://github.com/skhan847/cgep-capstone/blob/main/.github/workflows/capstone-pipeline.yml",
+                    "rel": "implementation"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
